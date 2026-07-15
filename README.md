@@ -2,10 +2,11 @@
 
 **Matemáticas Discretas II — Proyecto Final**
 
-Implementación completa de una función hash perfecta mínima dinámica (D-MPHF),
-construida mediante aritmética modular, teoría de grupos y relaciones de
-recurrencia, con comparación empírica contra una tabla hash tradicional.
+**Integrantes:** Luis Alejandro Sanchez Moreno, Samuel Ricardo Pardo Trujillo
+**Curso / Profesor:** Matemáticas Discretas II — Arles Rodriguez
+**Fecha de entrega:** Julio de 2026
 
+Implementación completa de una función hash perfecta mínima dinámica (D-MPHF),
 ---
 
 ## 1. ¿Qué problema resuelve?
@@ -33,12 +34,9 @@ clásico de MPHF no contempla.
 | **Algoritmo integrado** | Ensambla los tres módulos en la construcción tipo *Hash-Displace-Compress* (CHD) | `src/dmphf.py` |
 
 ## 3. La fórmula exacta implementada
-
-```
 h1(k) = (a1·k_int + b1) mod p mod n     # posición candidata   (grupo afín)
 h2(k) = (a2·k_int + b2) mod p mod r     # bucket / "subgrupo"  (grupo afín)
 hf(k) = (h1(k) + g[h2(k)]) mod n        # posición final       (traslación cíclica)
-```
 
 `g[]` (el vector de desplazamiento) se calcula **una vez, offline**
 ("Servidor") probando candidatos generados por el LCG (recurrencia) hasta que
@@ -86,6 +84,9 @@ Si se llama `insert()` sobre una tabla en modo "estático exacto", el sistema
 
 ## 5. Cómo correrlo
 
+Probado con Python 3.12.3 (compatible con cualquier versión 3.8+, sin
+dependencias del sistema operativo ni compilación).
+
 ```bash
 pip install -r requirements.txt
 
@@ -97,6 +98,30 @@ python3 demo.py
 
 # Benchmarks completos (D-MPHF estático, dinámico, y tabla tradicional)
 python3 benchmarks/run_benchmarks.py
+```
+
+### Ejemplo de uso directo en código
+
+Además de los scripts anteriores, la clase `DMPHF` se puede usar directamente
+en cualquier script propio:
+
+```python
+from src.dmphf import DMPHF
+
+# --- Caso estático: 0% de desperdicio exacto (n == m) ---
+keys = ["sensor_1", "sensor_2", "sensor_3", "sensor_4"]
+d = DMPHF(bucket_avg_size=3, seed=42)
+d.build(keys, exact_minimal=True)
+
+print(d.lookup("sensor_2"))   # -> posición entera en [0, m)
+print(d.lookup("no-existe"))  # -> None (llave no perteneciente al conjunto)
+print(d.stats())              # -> ocupación, memoria, intentos de construcción
+
+# --- Caso dinámico: permite insertar llaves nuevas después de construida ---
+d_dyn = DMPHF(slack=0.15, bucket_avg_size=3, seed=1)
+d_dyn.build(keys)
+resultado = d_dyn.insert("sensor_5")
+print(resultado.position, resultado.local_retries, resultado.rebuilt)
 ```
 
 ## 6. Resultados medidos (no simulados)
@@ -142,14 +167,45 @@ memoria, no velocidad de reloj, es el recurso crítico).
 - No se implementó eliminación (`delete`) de llaves; es una extensión natural
   (marcar tumba lógica + recompresión periódica).
 
-## 8. Referencia académica
+## 8. Qué es de la literatura y qué es aporte propio del grupo
 
-El algoritmo base (sin la extensión dinámica) es una variante didáctica de:
+Por transparencia académica, separamos explícitamente qué parte del proyecto
+es una implementación de un algoritmo ya publicado, y qué parte es
+contribución original de este grupo.
 
-> Belazzougui, D., Botelho, F. C., & Dietzfelbinger, M. (2009).
-> *Hash, displace, and compress.* European Symposium on Algorithms (ESA).
+### Lo que viene de la literatura (algoritmo CHD estático)
 
-La familia de hashing universal `(ax+b) mod p mod r` es la de:
+- La construcción **Hash-Displace-Compress**: las funciones `h1`, `h2`, la
+  búsqueda de un vector de desplazamiento `g[]` por bucket, y el paso final
+  de compresión mediante `rank`. Esto corresponde al algoritmo clásico de:
 
-> Carter, J. L., & Wegman, M. N. (1979).
-> *Universal classes of hash functions.* Journal of Computer and System Sciences.
+  > Belazzougui, D., Botelho, F. C., & Dietzfelbinger, M. (2009).
+  > *Hash, displace, and compress.* European Symposium on Algorithms (ESA).
+
+- La familia de funciones hash universales `h(x) = (a·x + b) mod p mod r`
+  usada para `h1` y `h2`, que corresponde a:
+
+  > Carter, J. L., & Wegman, M. N. (1979).
+  > *Universal classes of hash functions.* Journal of Computer and System Sciences.
+
+### Aporte propio del grupo
+
+- **La extensión dinámica completa** (`insert()`): el algoritmo CHD original
+  es puramente estático (requiere conocer todas las llaves de antemano). El
+  soporte de inserciones posteriores —incluyendo el reacomodo local por
+  bucket ("efecto dominó"), la reconstrucción completa amortizada mediante
+  la recurrencia `n_{t+1} = ⌈growth_factor·n_t⌉`, y la descompresión
+  automática al insertar sobre una tabla en modo estático exacto— no forma
+  parte del algoritmo original y fue diseñado e implementado por el grupo.
+- **La formalización explícita en términos de teoría de grupos**
+  (`src/group_theory.py`): identificar `h1`/`h2` como elementos del grupo
+  afín `AGL(1, Z_p)` y el desplazamiento por bucket como una traslación del
+  subgrupo cíclico `(Z_n, +)`, con verificación de bijectividad e inversos.
+- **El uso explícito de una recurrencia de primer orden como generador de
+  candidatos de desplazamiento** (`src/recurrence.py`, LCG), en vez de
+  aleatoriedad no reproducible.
+- **La comparación empírica completa contra una tabla hash tradicional**
+  (`src/traditional_hash.py`, `benchmarks/run_benchmarks.py`), incluyendo el
+  hallazgo honesto sobre el trade-off memoria/velocidad en Python puro
+  (sección 6).
+- Toda la batería de 35 pruebas automatizadas (`tests/test_dmphf.py`).
