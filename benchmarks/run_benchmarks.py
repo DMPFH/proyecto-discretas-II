@@ -124,12 +124,60 @@ def bench_insercion_dinamica():
     print(f"\nIntegridad verificada: {len(todas)} llaves, todas unicas y recuperables.")
 
 
+def plot_summary(resultados, output_path="benchmarks/comparacion_memoria.png"):
+    """Genera una gráfica de barras (memoria D-MPHF vs. tradicional, y
+    ocupación) a partir de los resultados medidos. Requiere matplotlib."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")  # no requiere entorno gráfico
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("\n[aviso] matplotlib no está instalado; se omite la gráfica "
+              "(pip install matplotlib).")
+        return
+
+    ns = [r["m"] for r in resultados]
+    mem_dmphf = [r["memoria_dmphf"] for r in resultados]
+    mem_trad = [r["memoria_trad"] for r in resultados]
+    ocup_dmphf = [r["ocupacion_dmphf"] for r in resultados]
+    ocup_trad = [r["ocupacion_trad"] for r in resultados]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
+
+    x = range(len(ns))
+    width = 0.35
+    ax1.bar([i - width/2 for i in x], mem_dmphf, width, label="D-MPHF")
+    ax1.bar([i + width/2 for i in x], mem_trad, width, label="Tradicional")
+    ax1.set_yscale("log")
+    ax1.set_xticks(list(x))
+    ax1.set_xticklabels([f"{n:,}" for n in ns])
+    ax1.set_xlabel("Número de llaves (m)")
+    ax1.set_ylabel("Memoria (bytes, escala log)")
+    ax1.set_title("Memoria de la estructura")
+    ax1.legend()
+
+    ax2.bar([i - width/2 for i in x], ocup_dmphf, width, label="D-MPHF")
+    ax2.bar([i + width/2 for i in x], ocup_trad, width, label="Tradicional")
+    ax2.set_xticks(list(x))
+    ax2.set_xticklabels([f"{n:,}" for n in ns])
+    ax2.set_xlabel("Número de llaves (m)")
+    ax2.set_ylabel("Ocupación (%)")
+    ax2.set_title("Ocupación de la tabla")
+    ax2.legend()
+
+    fig.suptitle("D-MPHF vs. Tabla Hash Tradicional (datos medidos)")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    print(f"\n[grafica] Guardada en: {output_path}")
+
+
 if __name__ == "__main__":
     resultados = []
     for m in (200, 2000, 20000):
         resultados.append(bench_one(m))
 
     bench_insercion_dinamica()
+    plot_summary(resultados)
 
     print(f"\n{'='*72}\n  Resumen (para graficar / incluir en el informe)\n{'='*72}")
     print(f"{'N':>8} {'Mem D-MPHF':>12} {'Mem Tradic.':>12} {'Ahorro %':>10} {'Ocup D-MPHF':>12} {'Ocup Trad':>10}")
